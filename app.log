@@ -1,0 +1,14 @@
+2025-07-08 00:44:43,660 - INFO - Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2025-07-08 00:44:46,865 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.29.38:5000
+2025-07-08 00:44:46,866 - INFO - [33mPress CTRL+C to quit[0m
+2025-07-08 00:44:57,813 - INFO - 127.0.0.1 - - [08/Jul/2025 00:44:57] "OPTIONS /api/chatbot HTTP/1.1" 200 -
+2025-07-08 00:45:00,300 - INFO - HTTP Request: GET https://241e87bd-784f-425f-9fc7-a4a7b2e52452.us-east-1-0.aws.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-07-08 00:45:01,143 - INFO - HTTP Request: POST https://241e87bd-784f-425f-9fc7-a4a7b2e52452.us-east-1-0.aws.cloud.qdrant.io:6333/collections/navin_portfolio/points/search "HTTP/1.1 200 OK"
+2025-07-08 00:45:02,315 - INFO - 127.0.0.1 - - [08/Jul/2025 00:45:02] "POST /api/chatbot HTTP/1.1" 200 -
+2025-07-08 00:45:12,360 - INFO - 127.0.0.1 - - [08/Jul/2025 00:45:12] "OPTIONS /api/chatbot HTTP/1.1" 200 -
+2025-07-08 00:45:14,236 - INFO - HTTP Request: GET https://241e87bd-784f-425f-9fc7-a4a7b2e52452.us-east-1-0.aws.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-07-08 00:45:15,045 - INFO - HTTP Request: POST https://241e87bd-784f-425f-9fc7-a4a7b2e52452.us-east-1-0.aws.cloud.qdrant.io:6333/collections/navin_portfolio/points/search "HTTP/1.1 200 OK"
+2025-07-08 00:45:18,358 - INFO - 127.0.0.1 - - [08/Jul/2025 00:45:18] "POST /api/chatbot HTTP/1.1" 200 -
