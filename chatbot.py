@@ -9,9 +9,10 @@ from dotenv import load_dotenv
 import psutil
 from tenacity import retry, stop_after_attempt, wait_fixed
 import chromadb
+import gc
 
 # Setup logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -23,7 +24,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "a-secure-default-secret-key")
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 logger.info("Flask app initialized with CORS enabled")
 
-# API and Configuration
+# Configuration
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if not gemini_api_key:
     logger.critical("GEMINI_API_KEY not found in environment variables.")
@@ -32,40 +33,49 @@ genai.configure(api_key=gemini_api_key)
 logger.info("Gemini API configured successfully")
 
 # Constants
-EMBEDDING_MODEL = "sentence-transformers/paraphrase-MiniLM-L3-v2"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 CHROMA_PERSIST_DIR = "./chroma_db"
 
-# Global Variables
-vector_db = None
-embeddings = HuggingFaceEmbeddings(
-    model_name=EMBEDDING_MODEL,
-    model_kwargs={"device": "cpu", "trust_remote_code": False},
-    encode_kwargs={"normalize_embeddings": True}
-)
+# Lazy-loaded components
+_embeddings = None
+_vector_db = None
 
-# Vector Store Initialization
-def initialize_vector_store():
-    global vector_db
-    try:
+def get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        logger.info("Initializing embeddings model")
+        _embeddings = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
+        )
+    return _embeddings
+
+def get_vector_db():
+    global _vector_db
+    if _vector_db is None:
+        logger.info("Initializing Chroma vector store")
         if not os.path.exists(CHROMA_PERSIST_DIR):
             logger.error(f"Chroma database directory {CHROMA_PERSIST_DIR} does not exist.")
-            return False
+            return None
 
-        logger.info(f"Loading pre-built Chroma vector store from {CHROMA_PERSIST_DIR}...")
-        vector_db = Chroma(
+        _vector_db = Chroma(
             collection_name="navin_portfolio",
-            embedding_function=embeddings,
+            embedding_function=get_embeddings(),
             persist_directory=CHROMA_PERSIST_DIR,
-            client_settings=chromadb.config.Settings(anonymized_telemetry=False)
+            client_settings=chromadb.config.Settings(
+                anonymized_telemetry=False,
+                is_persistent=True
+            )
         )
-        logger.info("Pre-built vector store loaded successfully.")
+        logger.info("Vector store loaded successfully")
+        
+        # Force garbage collection after loading
+        gc.collect()
         
         memory_usage = psutil.Process().memory_info().rss / 1024 / 1024
         logger.info(f"Memory usage after loading vector store: {memory_usage:.2f} MB")
-        return True
-    except Exception as e:
-        logger.error(f"Error loading pre-built vector store: {e}", exc_info=True)
-        return False
+    return _vector_db
 
 # Generative AI Response Function
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
@@ -93,12 +103,10 @@ def generate_response(query, context):
 
         **Rules for Responding:**
         1. **First-Person:** Always speak as Navin ("I", "my", "I've worked on...").
-        2. **Stay in Scope:** If the question is about personal opinions, future plans not in the resume, or anything outside the defined scope, politely decline. Use this response:
-            "I can only provide information based on my resume and GitHub profile. My expertise covers my skills, projects, and professional experience. Do you have a question about one of those areas?"
-        3. **Be Professional & Engaging:** Maintain a friendly, clear, and confident tone.
-        4. **Format Well:** Use bullet points for lists (like skills or project details) to make the information easy to read.
-        5. **No Fabrication:** Never make up information. If the context doesn't contain the answer, state that you don't have that information available in the provided documents.
-        6. Dont mention any extra note, stating no available data or anything similar.
+        2. **Be Professional & Engaging:** Maintain a friendly, clear, and confident tone.
+        3. **Format Well:** Use bullet points for lists (like skills or project details) to make the information easy to read.
+        4. **No Fabrication:** Never make up information. If the context doesn't contain the answer, state that you don't have that information available in the provided documents.
+        5. Dont mention any extra note, stating no available data or anything similar.
 
         ------------------------------
         **User's Question:** {query}
@@ -146,6 +154,7 @@ def chatbot():
         session["chat_history"] = []
         logger.debug("Initialized new session chat history.")
 
+    vector_db = get_vector_db()
     if vector_db is None:
         logger.critical("Vector store is not initialized. Cannot process query.")
         return jsonify({"response": "I'm sorry, my knowledge base is currently unavailable. Please try again later."}), 503
@@ -177,15 +186,10 @@ def chatbot():
 def health_check():
     status = {
         "status": "ok",
-        "vector_store_initialized": vector_db is not None,
+        "vector_store_initialized": get_vector_db() is not None,
         "memory_usage_mb": psutil.Process().memory_info().rss / 1024 / 1024
     }
     return jsonify(status)
-
-# Initialize vector store
-if not initialize_vector_store():
-    logger.critical("Failed to initialize the vector store on startup.")
-    exit(1)
 
 # Main Execution
 if __name__ == "__main__":
