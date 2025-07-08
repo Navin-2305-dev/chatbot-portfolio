@@ -145,6 +145,11 @@ def chatbot():
     except Exception:
         return jsonify({"error": "Internal server error"}), 500
 
+@app.get("/api/chatbot/ping")
+def ping():
+    return {"status": "alive"}
+
+
 @app.route("/api/chat_history", methods=["GET"])
 def get_chat_history():
     return jsonify(session.get("chat_history", []))
