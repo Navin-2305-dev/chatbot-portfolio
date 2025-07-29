@@ -7,7 +7,7 @@ from langchain_qdrant import Qdrant
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 import requests
-from langchain.docstore.document import Document  # Import Document class
+from langchain.docstore.document import Document
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
