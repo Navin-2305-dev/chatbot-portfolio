@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from langchain_cohere import CohereEmbeddings
+from langchain_community.embeddings import CohereEmbeddings
 import google.generativeai as genai
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
