@@ -1,13 +1,13 @@
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from google.genai import Client
 
-from langchain_qdrant import QdrantVectorStore
+from langchain_community.vectorstores import Qdrant
 from qdrant_client import QdrantClient
 
 # --------------------------------------------------
@@ -29,7 +29,7 @@ if missing:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, supports_credentials=True)
 
 # --------------------------------------------------
 # Gemini Client
@@ -37,7 +37,7 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --------------------------------------------------
-# Gemini Embeddings Wrapper
+# Gemini Embeddings
 # --------------------------------------------------
 class GeminiEmbeddings:
     def __init__(self, model="models/text-embedding-004"):
@@ -59,19 +59,20 @@ class GeminiEmbeddings:
             content=text
         ).embedding
 
+embeddings = GeminiEmbeddings()
+
 # --------------------------------------------------
-# Vector Store Setup
+# Vector Store
 # --------------------------------------------------
 COLLECTION_NAME = "ChatBot-Portfolio"
-embeddings = GeminiEmbeddings()
 
 def get_vector_store():
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY"),
-        timeout=20
+        api_key=os.getenv("QDRANT_API_KEY")
     )
-    return QdrantVectorStore(
+
+    return Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
         embedding=embeddings
@@ -137,12 +138,5 @@ def chatbot():
 def ping():
     return {"status": "alive"}
 
-# --------------------------------------------------
-# Run
-# --------------------------------------------------
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 5000)),
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

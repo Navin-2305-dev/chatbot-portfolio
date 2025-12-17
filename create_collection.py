@@ -6,17 +6,14 @@ from qdrant_client.models import VectorParams, Distance
 load_dotenv()
 
 COLLECTION_NAME = "ChatBot-Portfolio"
-VECTOR_SIZE = 768  # Gemini embeddings size
+VECTOR_SIZE = 768  # Gemini embedding size
 
 client = QdrantClient(
     url=os.getenv("QDRANT_URL"),
-    api_key=os.getenv("QDRANT_API_KEY"),
-    timeout=20
+    api_key=os.getenv("QDRANT_API_KEY")
 )
 
-if client.collection_exists(COLLECTION_NAME):
-    print(f"ℹ️ Collection '{COLLECTION_NAME}' already exists.")
-else:
+if not client.collection_exists(COLLECTION_NAME):
     client.create_collection(
         collection_name=COLLECTION_NAME,
         vectors_config=VectorParams(
@@ -24,4 +21,6 @@ else:
             distance=Distance.COSINE
         )
     )
-    print(f"✅ Collection '{COLLECTION_NAME}' created successfully")
+    print("✅ Collection created")
+else:
+    print("ℹ️ Collection already exists")

@@ -7,7 +7,7 @@ from google.genai import Client
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_qdrant import QdrantVectorStore
+from langchain_community.vectorstores import Qdrant
 from langchain.docstore.document import Document
 from qdrant_client import QdrantClient
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 COLLECTION_NAME = "ChatBot-Portfolio"
 
 # --------------------------------------------------
-# Gemini Client + Embeddings
+# Gemini Embeddings
 # --------------------------------------------------
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -42,7 +42,7 @@ class GeminiEmbeddings:
             content=text
         ).embedding
 
-def fetch_github_projects() -> str:
+def fetch_github_projects():
     try:
         response = requests.get(
             "https://api.github.com/users/Navin-2305-dev/repos",
@@ -57,16 +57,15 @@ def fetch_github_projects() -> str:
             for r in repos
         )
     except Exception as e:
-        logger.warning(f"GitHub fetch failed: {e}")
+        logger.warning(e)
         return "See my GitHub: https://github.com/Navin-2305-dev"
 
 def build_vector_db():
     documents = []
 
-    resume_path = "Uploads/Navin - Software_resume.pdf"
-    if os.path.exists(resume_path):
-        documents.extend(PyPDFLoader(resume_path).load())
-        logger.info("Resume loaded")
+    resume = "Uploads/Navin - Software_resume.pdf"
+    if os.path.exists(resume):
+        documents.extend(PyPDFLoader(resume).load())
 
     documents.append(
         Document(
@@ -75,28 +74,22 @@ def build_vector_db():
         )
     )
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500,
-        chunk_overlap=150
-    )
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=150)
     chunks = splitter.split_documents(documents)
-    logger.info(f"Chunks created: {len(chunks)}")
-
-    embeddings = GeminiEmbeddings()
 
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
         api_key=os.getenv("QDRANT_API_KEY")
     )
 
-    vector_store = QdrantVectorStore(
+    vector_store = Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
-        embedding=embeddings
+        embedding=GeminiEmbeddings()
     )
 
     vector_store.add_documents(chunks)
-    logger.info("✅ Vector database built successfully")
+    logger.info("✅ Vector DB built successfully")
 
 if __name__ == "__main__":
     build_vector_db()
