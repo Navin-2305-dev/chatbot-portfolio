@@ -76,12 +76,9 @@ def generate_response(query: str, context: str) -> str:
         **Your Answer (as Navin):**
         """
 
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt
-        )
-
-        return response.text.strip() if response.text else "I couldn't generate a response right now."
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return response.text.strip()
 
     except Exception as e:
         print(f"Generation error: {e}")
