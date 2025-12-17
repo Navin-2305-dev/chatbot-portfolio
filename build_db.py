@@ -28,13 +28,14 @@ class GeminiEmbeddings:
         self.model = model
 
     def embed_documents(self, texts):
-        return [
-            self.client.models.embed_content(
+        embeddings = []
+        for text in texts:
+            res = self.client.models.embed_content(
                 model=self.model,
                 content=text
-            ).embedding
-            for text in texts
-        ]
+            )
+            embeddings.append(res.embedding)
+        return embeddings
 
     def embed_query(self, text):
         return self.client.models.embed_content(
@@ -42,6 +43,9 @@ class GeminiEmbeddings:
             content=text
         ).embedding
 
+# --------------------------------------------------
+# Data Loaders
+# --------------------------------------------------
 def fetch_github_projects():
     try:
         response = requests.get(
@@ -60,12 +64,16 @@ def fetch_github_projects():
         logger.warning(e)
         return "See my GitHub: https://github.com/Navin-2305-dev"
 
+# --------------------------------------------------
+# Build Vector DB
+# --------------------------------------------------
 def build_vector_db():
     documents = []
 
-    resume = "Uploads/Navin - Software_resume.pdf"
-    if os.path.exists(resume):
-        documents.extend(PyPDFLoader(resume).load())
+    resume_path = "Uploads/Navin - Software_resume.pdf"
+    if os.path.exists(resume_path):
+        documents.extend(PyPDFLoader(resume_path).load())
+        logger.info("Resume loaded")
 
     documents.append(
         Document(
@@ -74,8 +82,12 @@ def build_vector_db():
         )
     )
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=150)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1500,
+        chunk_overlap=150
+    )
     chunks = splitter.split_documents(documents)
+    logger.info(f"Chunks created: {len(chunks)}")
 
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
@@ -85,11 +97,11 @@ def build_vector_db():
     vector_store = Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
-        embedding=GeminiEmbeddings()
+        embeddings=GeminiEmbeddings()
     )
 
     vector_store.add_documents(chunks)
-    logger.info("✅ Vector DB built successfully")
+    logger.info("✅ Vector database built successfully")
 
 if __name__ == "__main__":
     build_vector_db()

@@ -28,7 +28,6 @@ if missing:
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
-
 CORS(app, supports_credentials=True)
 
 # --------------------------------------------------
@@ -37,7 +36,7 @@ CORS(app, supports_credentials=True)
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --------------------------------------------------
-# Gemini Embeddings
+# Gemini Embeddings (LangChain Compatible)
 # --------------------------------------------------
 class GeminiEmbeddings:
     def __init__(self, model="models/text-embedding-004"):
@@ -45,13 +44,14 @@ class GeminiEmbeddings:
         self.model = model
 
     def embed_documents(self, texts):
-        return [
-            self.client.models.embed_content(
+        embeddings = []
+        for text in texts:
+            res = self.client.models.embed_content(
                 model=self.model,
                 content=text
-            ).embedding
-            for text in texts
-        ]
+            )
+            embeddings.append(res.embedding)
+        return embeddings
 
     def embed_query(self, text):
         return self.client.models.embed_content(
@@ -76,7 +76,7 @@ def get_vector_store():
     return Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
-        embedding=embeddings,
+        embeddings=embeddings,
         content_payload_key="page_content"
     )
 
@@ -86,18 +86,18 @@ def get_vector_store():
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 def generate_response(query, context):
     prompt = f"""
-        You are Navin Assistant.
-        Answer ONLY from the given context.
-        Speak in first person.
+You are Navin Assistant.
+Answer ONLY from the given context.
+Speak in first person.
 
-        Context:
-        {context}
+Context:
+{context}
 
-        Question:
-        {query}
+Question:
+{query}
 
-        Answer:
-        """
+Answer:
+"""
     response = gemini_client.models.generate_content(
         model="gemini-1.5-flash",
         contents=prompt
@@ -120,8 +120,11 @@ def chatbot():
     try:
         vector_store = get_vector_store()
         docs = vector_store.similarity_search(query, k=2)
-        context = "\n\n".join(d.page_content for d in docs)
 
+        if not docs:
+            return {"response": "I don’t have information about that yet."}
+
+        context = "\n\n".join(d.page_content for d in docs)
         response = generate_response(query, context)
 
         session["chat_history"].append({
@@ -140,10 +143,16 @@ def chatbot():
             "details": str(e)
         }, 500
 
-
 @app.get("/api/chatbot/ping")
 def ping():
     return {"status": "alive"}
 
+# --------------------------------------------------
+# Run
+# --------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        debug=False
+    )

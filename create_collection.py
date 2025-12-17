@@ -10,10 +10,13 @@ VECTOR_SIZE = 768  # Gemini embedding size
 
 client = QdrantClient(
     url=os.getenv("QDRANT_URL"),
-    api_key=os.getenv("QDRANT_API_KEY")
+    api_key=os.getenv("QDRANT_API_KEY"),
+    timeout=20
 )
 
-if not client.collection_exists(COLLECTION_NAME):
+if client.collection_exists(COLLECTION_NAME):
+    print(f"ℹ️ Collection '{COLLECTION_NAME}' already exists.")
+else:
     client.create_collection(
         collection_name=COLLECTION_NAME,
         vectors_config=VectorParams(
@@ -21,6 +24,4 @@ if not client.collection_exists(COLLECTION_NAME):
             distance=Distance.COSINE
         )
     )
-    print("✅ Collection created")
-else:
-    print("ℹ️ Collection already exists")
+    print(f"✅ Collection '{COLLECTION_NAME}' created successfully")
