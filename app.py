@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-import google.generativeai as genai
+from google import genai  # New official package (replaces google.generativeai)
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
 from qdrant_client import QdrantClient
@@ -15,6 +15,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "default-secret-key")
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+# Required environment variables
 required_keys = {
     "GEMINI_API_KEY": "Gemini API key",
     "QDRANT_URL": "Qdrant URL",
@@ -25,14 +26,17 @@ missing_keys = [name for name in required_keys if not os.getenv(name)]
 if missing_keys:
     raise ValueError(f"Missing required environment variables: {', '.join(missing_keys)}")
 
+# Configure the new Google GenAI SDK
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+# Embeddings for retrieval (using Gemini embedding model)
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/text-embedding-004",
-    task_type="retrieval_query"  # Optimized for queries
+    task_type="retrieval_query"
 )
 
 def get_vector_store():
+    """Connect to existing Qdrant collection using the non-deprecated class."""
     try:
         client = QdrantClient(
             url=os.getenv("QDRANT_URL"),
@@ -41,7 +45,6 @@ def get_vector_store():
         )
         collection_name = "navin_portfolio"
 
-        # Connect to existing collection (assumes it was created with dimension 768)
         return QdrantVectorStore(
             client=client,
             collection_name=collection_name,
@@ -52,38 +55,46 @@ def get_vector_store():
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-def generate_response(query, context):
+def generate_response(query: str, context: str) -> str:
+    """Generate response using Gemini via the new google.genai SDK."""
     try:
         prompt = f"""
-        You are **Navin Assistant** – a professional, conversational AI representing Navin B. Answer questions confidently and concisely based *only* on the provided context from Navin's resume and GitHub.
+        You are **Navin Assistant** – a professional, conversational AI representing Navin B.
+        Answer questions confidently and concisely based *only* on the provided context from Navin's resume and GitHub.
 
         **Context:**
         {context}
 
         **Rules:**
-        - Speak in first person as Navin ("I", "my", etc.).
+        - Speak in first person as Navin ("I", "my", "I've", etc.).
         - Be professional, friendly, and engaging.
-        - Use bullet points for lists (skills, projects, etc.).
-        - Never invent or assume information not in the context.
-        - Keep responses balanced: not too short, not overly long.
-        - Answer adequately based on the context.
+        - Use bullet points for lists (skills, projects, experience, etc.).
+        - Never invent or assume information not present in the context.
+        - Keep responses balanced: informative but not overly long.
 
         **User Question:** {query}
 
         **Your Answer (as Navin):**
         """
-        model = genai.GenerativeModel("gemini-1.5-flash")  # Updated to a valid current model; change if needed
+
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
         response = model.generate_content(prompt)
-        return response.text.strip()
+        
+        # Safely extract text
+        if response.text:
+            return response.text.strip()
+        else:
+            return "I couldn't generate a response at the moment."
+
     except Exception as e:
         print(f"Generation error: {e}")
-        return "I'm having trouble processing your request right now."
+        return "I'm having trouble processing your request right now. Please try again."
 
 @app.route("/api/chatbot", methods=["POST"])
 def chatbot():
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 415
-    
+
     try:
         data = request.get_json()
         query = data.get("query", "").strip()
@@ -92,6 +103,7 @@ def chatbot():
     except Exception:
         return jsonify({"error": "Invalid request data"}), 400
 
+    # Initialize session history if not exists
     if "chat_history" not in session:
         session["chat_history"] = []
 
@@ -100,10 +112,14 @@ def chatbot():
         return jsonify({"error": "Knowledge base unavailable"}), 503
 
     try:
-        docs = vector_store.similarity_search(query, k=4)  # Increased to 4 for better context
+        # Retrieve relevant chunks (k=4 for better context)
+        docs = vector_store.similarity_search(query, k=4)
         context = "\n\n".join(doc.page_content for doc in docs)
+
+        # Generate response
         response = generate_response(query, context)
 
+        # Save to session history
         session["chat_history"].append({
             "query": query,
             "response": response,
@@ -112,8 +128,9 @@ def chatbot():
         session.modified = True
 
         return jsonify({"response": response})
+
     except Exception as e:
-        print(f"Retrieval/generation error: {e}")
+        print(f"Retrieval or generation error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route("/api/chat_history", methods=["GET"])
