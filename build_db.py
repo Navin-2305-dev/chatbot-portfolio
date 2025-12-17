@@ -35,14 +35,15 @@ class GeminiEmbeddings(Embeddings):
                 model=self.model,
                 contents=text
             )
-            vectors.append(res.embedding)
+            vectors.append(res.embeddings[0].values)
         return vectors
 
     def embed_query(self, text):
-        return self.client.models.embed_content(
+        res = self.client.models.embed_content(
             model=self.model,
             contents=text
-        ).embedding
+        )
+        return res.embeddings[0].values
 
 # --------------------------------------------------
 # Helpers
@@ -88,6 +89,7 @@ def build_vector_db():
         chunk_overlap=150
     )
     chunks = splitter.split_documents(documents)
+    logger.info(f"Chunks created: {len(chunks)}")
 
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
