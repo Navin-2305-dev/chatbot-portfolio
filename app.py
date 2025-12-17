@@ -9,7 +9,6 @@ from google.genai import Client
 
 from langchain_core.embeddings import Embeddings
 from langchain_community.vectorstores import Qdrant
-from qdrant_client import QdrantClient
 
 # --------------------------------------------------
 # Setup
@@ -37,7 +36,7 @@ CORS(app, supports_credentials=True)
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --------------------------------------------------
-# Gemini Embeddings (CORRECT for google-genai 0.3.0)
+# Gemini Embeddings (CORRECT)
 # --------------------------------------------------
 class GeminiEmbeddings(Embeddings):
     def __init__(self, model="models/text-embedding-004"):
@@ -64,19 +63,14 @@ class GeminiEmbeddings(Embeddings):
 embeddings = GeminiEmbeddings()
 
 # --------------------------------------------------
-# Vector Store
+# Vector Store (CORRECT INITIALIZATION)
 # --------------------------------------------------
 COLLECTION_NAME = "ChatBot-Portfolio"
 
 def get_vector_store():
-    client = QdrantClient(
+    return Qdrant.from_existing_collection(
         url=os.getenv("QDRANT_URL"),
         api_key=os.getenv("QDRANT_API_KEY"),
-        timeout=20
-    )
-
-    return Qdrant(
-        client=client,
         collection_name=COLLECTION_NAME,
         embeddings=embeddings
     )
