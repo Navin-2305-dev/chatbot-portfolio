@@ -76,7 +76,7 @@ def generate_response(query: str, context: str) -> str:
         """
 
         response = genai_client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",  # Updated model name
             contents=prompt
         )
 
@@ -85,7 +85,7 @@ def generate_response(query: str, context: str) -> str:
     except Exception as e:
         print(f"Generation error: {e}")
         return "I'm having trouble processing your request right now. Please try again later."
-
+    
 @app.route("/api/chatbot", methods=["POST"])
 def chatbot():
     if not request.is_json:
