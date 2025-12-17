@@ -7,6 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from google.genai import Client
 
+from langchain_core.embeddings import Embeddings
 from langchain_community.vectorstores import Qdrant
 from qdrant_client import QdrantClient
 
@@ -36,22 +37,21 @@ CORS(app, supports_credentials=True)
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --------------------------------------------------
-# Gemini Embeddings (LangChain Compatible)
+# Gemini Embeddings (CORRECT LangChain Implementation)
 # --------------------------------------------------
-class GeminiEmbeddings:
+class GeminiEmbeddings(Embeddings):
     def __init__(self, model="models/text-embedding-004"):
         self.client = gemini_client
         self.model = model
 
     def embed_documents(self, texts):
-        embeddings = []
-        for text in texts:
-            res = self.client.models.embed_content(
+        return [
+            self.client.models.embed_content(
                 model=self.model,
                 content=text
-            )
-            embeddings.append(res.embedding)
-        return embeddings
+            ).embedding
+            for text in texts
+        ]
 
     def embed_query(self, text):
         return self.client.models.embed_content(
@@ -76,8 +76,7 @@ def get_vector_store():
     return Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
-        embeddings=embeddings,
-        content_payload_key="page_content"
+        embeddings=embeddings
     )
 
 # --------------------------------------------------
