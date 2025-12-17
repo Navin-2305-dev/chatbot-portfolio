@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from google.genai import GenerativeModel  # Direct new SDK import (no warning)
+from google import genai  # Correct import for new SDK
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
 from qdrant_client import QdrantClient
@@ -25,11 +25,14 @@ missing_keys = [name for name in required_keys if not os.getenv(name)]
 if missing_keys:
     raise ValueError(f"Missing required environment variables: {', '.join(missing_keys)}")
 
-# Pass API key explicitly to embeddings to avoid ADC fallback
+# Create the GenAI client once (for Gemini Developer API using API key)
+genai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Embeddings - explicitly pass API key to prevent ADC fallback
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/text-embedding-004",
     task_type="retrieval_query",
-    google_api_key=os.getenv("GEMINI_API_KEY")  # Critical fix
+    google_api_key=os.getenv("GEMINI_API_KEY")
 )
 
 def get_vector_store():
@@ -72,8 +75,11 @@ def generate_response(query: str, context: str) -> str:
         **Your Answer (as Navin):**
         """
 
-        model = GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        response = genai_client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt
+        )
+
         return response.text.strip() if response.text else "I couldn't generate a response right now."
 
     except Exception as e:
