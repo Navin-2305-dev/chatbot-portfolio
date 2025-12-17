@@ -3,7 +3,7 @@ import logging
 import requests
 from dotenv import load_dotenv
 
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_qdrant import QdrantVectorStore
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "ChatBot-Portfolio"
 
-# ------------------ GitHub Fetch ------------------
 def fetch_github_projects() -> str:
     try:
         response = requests.get(
@@ -31,12 +30,10 @@ def fetch_github_projects() -> str:
             f"{r['name']}: {r.get('description', 'No description')} ({r['html_url']})"
             for r in repos
         )
-
     except Exception as e:
         logger.warning(f"GitHub fetch failed: {e}")
         return "See my GitHub: https://github.com/Navin-2305-dev"
 
-# ------------------ Build Vector DB ------------------
 def build_vector_db():
     documents = []
 
@@ -59,7 +56,7 @@ def build_vector_db():
     chunks = splitter.split_documents(documents)
     logger.info(f"Chunks created: {len(chunks)}")
 
-    embeddings = SentenceTransformerEmbeddings(
+    embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
@@ -75,7 +72,7 @@ def build_vector_db():
     )
 
     vector_store.add_documents(chunks)
-    logger.info("✅ Vector database populated successfully")
+    logger.info("✅ Vector database built successfully")
 
 if __name__ == "__main__":
     build_vector_db()

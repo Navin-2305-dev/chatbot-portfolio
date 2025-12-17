@@ -3,11 +3,11 @@ from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from dotenv import load_dotenv
-
-import google.generativeai as genai
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+from google import genai
+
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
@@ -16,14 +16,14 @@ from qdrant_client import QdrantClient
 # --------------------------------------------------
 load_dotenv()
 
-REQUIRED_VARS = [
+REQUIRED_ENV_VARS = [
     "GEMINI_API_KEY",
     "QDRANT_URL",
     "QDRANT_API_KEY",
     "FLASK_SECRET_KEY"
 ]
 
-missing = [v for v in REQUIRED_VARS if not os.getenv(v)]
+missing = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
 if missing:
     raise RuntimeError(f"Missing env vars: {', '.join(missing)}")
 
@@ -32,17 +32,20 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# --------------------------------------------------
+# Gemini Client (NEW SDK)
+# --------------------------------------------------
+gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+# --------------------------------------------------
+# Vector Store Setup
+# --------------------------------------------------
 COLLECTION_NAME = "ChatBot-Portfolio"
 
-embeddings = SentenceTransformerEmbeddings(
+embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-# --------------------------------------------------
-# Vector Store Init
-# --------------------------------------------------
 def get_vector_store():
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
@@ -56,12 +59,14 @@ def get_vector_store():
     )
 
 # --------------------------------------------------
-# LLM
+# LLM Generator
 # --------------------------------------------------
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 def generate_response(query, context):
     prompt = f"""
-You are Navin Assistant. Answer strictly from the context.
+You are Navin Assistant.
+Answer ONLY from the given context.
+Speak in first person.
 
 Context:
 {context}
@@ -69,10 +74,13 @@ Context:
 Question:
 {query}
 
-Answer in first person:
+Answer:
 """
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    return model.generate_content(prompt).text.strip()
+    response = gemini_client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+    return response.text.strip()
 
 # --------------------------------------------------
 # Routes
@@ -83,7 +91,7 @@ def chatbot():
     query = data.get("query", "").strip()
 
     if not query:
-        return {"error": "Query required"}, 400
+        return {"error": "Query cannot be empty"}, 400
 
     session.setdefault("chat_history", [])
 
@@ -114,4 +122,8 @@ def ping():
 # Run
 # --------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        debug=False
+    )
