@@ -37,7 +37,7 @@ CORS(app, supports_credentials=True)
 gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --------------------------------------------------
-# Gemini Embeddings (CORRECT LangChain Implementation)
+# Gemini Embeddings (LangChain 0.2.x Compatible)
 # --------------------------------------------------
 class GeminiEmbeddings(Embeddings):
     def __init__(self, model="models/text-embedding-004"):
@@ -45,18 +45,19 @@ class GeminiEmbeddings(Embeddings):
         self.model = model
 
     def embed_documents(self, texts):
-        return [
-            self.client.models.embed_content(
+        vectors = []
+        for text in texts:
+            res = self.client.models.embed_content(
                 model=self.model,
-                content=text
-            ).embedding
-            for text in texts
-        ]
+                contents=text
+            )
+            vectors.append(res.embedding)
+        return vectors
 
     def embed_query(self, text):
         return self.client.models.embed_content(
             model=self.model,
-            content=text
+            contents=text
         ).embedding
 
 embeddings = GeminiEmbeddings()

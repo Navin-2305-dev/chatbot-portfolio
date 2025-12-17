@@ -29,18 +29,19 @@ class GeminiEmbeddings(Embeddings):
         self.model = model
 
     def embed_documents(self, texts):
-        return [
-            self.client.models.embed_content(
+        vectors = []
+        for text in texts:
+            res = self.client.models.embed_content(
                 model=self.model,
-                content=text
-            ).embedding
-            for text in texts
-        ]
+                contents=text
+            )
+            vectors.append(res.embedding)
+        return vectors
 
     def embed_query(self, text):
         return self.client.models.embed_content(
             model=self.model,
-            content=text
+            contents=text
         ).embedding
 
 # --------------------------------------------------
