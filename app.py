@@ -2,12 +2,12 @@ import os
 from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from langchain_cohere import CohereEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
-from qdrant_client import QdrantClient, models
-from langchain_qdrant import Qdrant
+from qdrant_client import QdrantClient
+from langchain_qdrant import QdrantVectorStore
 
 load_dotenv()
 
@@ -17,7 +17,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 required_keys = {
     "GEMINI_API_KEY": "Gemini API key",
-    "COHERE_API_KEY": "Cohere API key",
     "QDRANT_URL": "Qdrant URL",
     "QDRANT_API_KEY": "Qdrant API key"
 }
@@ -28,84 +27,56 @@ if missing_keys:
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-embeddings = CohereEmbeddings(
-    model="embed-english-light-v3.0",
-    cohere_api_key=os.getenv("COHERE_API_KEY"),
-    user_agent="navin-portfolio-chatbot"
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/text-embedding-004",
+    task_type="retrieval_query"  # Optimized for queries
 )
 
-def initialize_vector_store():
+def get_vector_store():
     try:
         client = QdrantClient(
             url=os.getenv("QDRANT_URL"),
             api_key=os.getenv("QDRANT_API_KEY"),
             timeout=20
         )
-        
         collection_name = "navin_portfolio"
-        
-        try:
-            collection_info = client.get_collection(collection_name)
-            if collection_info.config.params.vectors.size != 384:
-                client.recreate_collection(
-                    collection_name=collection_name,
-                    vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE)
-                )
-        except Exception:
-            client.create_collection(
-                collection_name=collection_name,
-                vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE)
-            )
 
-        return Qdrant(
+        # Connect to existing collection (assumes it was created with dimension 768)
+        return QdrantVectorStore(
             client=client,
             collection_name=collection_name,
-            embeddings=embeddings
+            embedding=embeddings
         )
-    except Exception:
+    except Exception as e:
+        print(f"Error connecting to Qdrant: {e}")
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 def generate_response(query, context):
     try:
         prompt = f"""
-        You are **Navin Assistant** – a professional, conversational AI representing Navin B. Your primary role is to provide accurate, confident, and concise answers based *only* on the combined information from Navin's resume and GitHub.
+        You are **Navin Assistant** – a professional, conversational AI representing Navin B. Answer questions confidently and concisely based *only* on the provided context from Navin's resume and GitHub.
 
-      ------------------------------
-      **Context from Resume and GitHub:**
-      {context}
-      ------------------------------
+        **Context:**
+        {context}
 
-      **Your Task:**
-      Answer the user's question based *strictly* on the provided context. Do not invent, assume, or use any external knowledge. If the answer isn't in the context, say so.
+        **Rules:**
+        - Speak in first person as Navin ("I", "my", etc.).
+        - Be professional, friendly, and engaging.
+        - Use bullet points for lists (skills, projects, etc.).
+        - Never invent or assume information not in the context.
+        - Keep responses balanced: not too short, not overly long.
+        - Answer adequately based on the context.
 
-      **Scope of Knowledge (You can ONLY answer about):**
-      - Skills, Tools, and Technologies
-      - Professional Experience and Roles
-      - Projects (including personal and academic)
-      - Education and Degrees
-      - Certifications and Licenses
-      - Awards and Recognitions
-      - GitHub Profile Link
+        **User Question:** {query}
 
-      **Rules for Responding:**
-      1. **First-Person:** Always speak as Navin ("I", "my", "I've worked on...").
-      2. **Be Professional & Engaging:** Maintain a friendly, clear, and confident tone.
-      3. **Format Well:** Use bullet points for lists (like skills or project details) to make the information easy to read.
-      4. **No Fabrication:** Never make up information. If the context doesn't contain the answer, state that you don't have that information available in the provided documents.
-      5. Dont mention any extra note, stating no available data or anything similar.
-      6. Don't give overly lengthy answers, but avoid very short ones too. Answer the queries adequately.
-
-      ------------------------------
-      **User's Question:** {query}
-      ------------------------------
-
-      **Your Answer (as Navin):**
+        **Your Answer (as Navin):**
         """
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")  # Updated to a valid current model; change if needed
         response = model.generate_content(prompt)
         return response.text.strip()
-    except Exception:
+    except Exception as e:
+        print(f"Generation error: {e}")
         return "I'm having trouble processing your request right now."
 
 @app.route("/api/chatbot", methods=["POST"])
@@ -124,12 +95,12 @@ def chatbot():
     if "chat_history" not in session:
         session["chat_history"] = []
 
-    try:
-        vector_store = initialize_vector_store()
-        if not vector_store:
-            return jsonify({"error": "Knowledge base unavailable"}), 503
+    vector_store = get_vector_store()
+    if not vector_store:
+        return jsonify({"error": "Knowledge base unavailable"}), 503
 
-        docs = vector_store.similarity_search(query, k=2)
+    try:
+        docs = vector_store.similarity_search(query, k=4)  # Increased to 4 for better context
         context = "\n\n".join(doc.page_content for doc in docs)
         response = generate_response(query, context)
 
@@ -141,8 +112,8 @@ def chatbot():
         session.modified = True
 
         return jsonify({"response": response})
-
-    except Exception:
+    except Exception as e:
+        print(f"Retrieval/generation error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route("/api/chat_history", methods=["GET"])

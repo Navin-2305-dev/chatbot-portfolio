@@ -3,51 +3,25 @@ import logging
 import requests
 from dotenv import load_dotenv
 
-from google.genai import Client
-
-from langchain_core.embeddings import Embeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Qdrant
+from langchain_qdrant import QdrantVectorStore
 from langchain.docstore.document import Document
 from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "ChatBot-Portfolio"
+COLLECTION_NAME = "navin_portfolio"  # Consistent with app.py
 
-# --------------------------------------------------
-# Gemini Embeddings
-# --------------------------------------------------
-gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/text-embedding-004",
+    task_type="retrieval_document"  # Optimized for documents
+)
 
-class GeminiEmbeddings(Embeddings):
-    def __init__(self, model="models/text-embedding-004"):
-        self.client = gemini_client
-        self.model = model
-
-    def embed_documents(self, texts):
-        vectors = []
-        for text in texts:
-            res = self.client.models.embed_content(
-                model=self.model,
-                contents=text
-            )
-            vectors.append(res.embeddings[0].values)
-        return vectors
-
-    def embed_query(self, text):
-        res = self.client.models.embed_content(
-            model=self.model,
-            contents=text
-        )
-        return res.embeddings[0].values
-
-# --------------------------------------------------
-# Helpers
-# --------------------------------------------------
 def fetch_github_projects():
     try:
         response = requests.get(
@@ -56,19 +30,15 @@ def fetch_github_projects():
             timeout=10
         )
         response.raise_for_status()
-
         repos = response.json()
         return "\n".join(
             f"{r['name']}: {r.get('description', 'No description')} ({r['html_url']})"
             for r in repos
         )
     except Exception as e:
-        logger.warning(e)
+        logger.warning(f"GitHub fetch error: {e}")
         return "See my GitHub: https://github.com/Navin-2305-dev"
 
-# --------------------------------------------------
-# Build Vector DB
-# --------------------------------------------------
 def build_vector_db():
     documents = []
 
@@ -76,6 +46,8 @@ def build_vector_db():
     if os.path.exists(resume_path):
         documents.extend(PyPDFLoader(resume_path).load())
         logger.info("Resume loaded")
+    else:
+        logger.error("Resume PDF not found!")
 
     documents.append(
         Document(
@@ -84,22 +56,30 @@ def build_vector_db():
         )
     )
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500,
-        chunk_overlap=150
-    )
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=150)
     chunks = splitter.split_documents(documents)
-    logger.info(f"Chunks created: {len(chunks)}")
+    logger.info(f"Created {len(chunks)} chunks")
 
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY")
+        api_key=os.getenv("QDRANT_API_KEY"),
+        timeout=20
     )
 
-    vector_store = Qdrant(
+    # Create collection if it doesn't exist (768 dim for text-embedding-004)
+    if not client.collection_exists(COLLECTION_NAME):
+        client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=VectorParams(size=768, distance=Distance.COSINE)
+        )
+        logger.info("Collection created")
+    else:
+        logger.info("Collection already exists")
+
+    vector_store = QdrantVectorStore(
         client=client,
         collection_name=COLLECTION_NAME,
-        embeddings=GeminiEmbeddings()
+        embedding=embeddings
     )
 
     vector_store.add_documents(chunks)
