@@ -42,7 +42,11 @@ def initialize_vector_store():
             timeout=20
         )
         
+<<<<<<< HEAD
         collection_name = "ChatBot-Portfolio"
+=======
+        collection_name = "navin_portfolio"
+>>>>>>> 70093230aa7dc5fa37876110637ee5bffe9d7dec
         
         try:
             collection_info = client.get_collection(collection_name)
