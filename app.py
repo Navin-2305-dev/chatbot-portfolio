@@ -5,9 +5,8 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from google import genai
+from google.genai import Client
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
@@ -33,18 +32,38 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
 # --------------------------------------------------
-# Gemini Client (NEW SDK)
+# Gemini Client
 # --------------------------------------------------
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# --------------------------------------------------
+# Gemini Embeddings Wrapper
+# --------------------------------------------------
+class GeminiEmbeddings:
+    def __init__(self, model="models/text-embedding-004"):
+        self.client = gemini_client
+        self.model = model
+
+    def embed_documents(self, texts):
+        return [
+            self.client.models.embed_content(
+                model=self.model,
+                content=text
+            ).embedding
+            for text in texts
+        ]
+
+    def embed_query(self, text):
+        return self.client.models.embed_content(
+            model=self.model,
+            content=text
+        ).embedding
 
 # --------------------------------------------------
 # Vector Store Setup
 # --------------------------------------------------
 COLLECTION_NAME = "ChatBot-Portfolio"
-
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+embeddings = GeminiEmbeddings()
 
 def get_vector_store():
     client = QdrantClient(

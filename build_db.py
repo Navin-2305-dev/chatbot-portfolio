@@ -3,7 +3,8 @@ import logging
 import requests
 from dotenv import load_dotenv
 
-from langchain_huggingface import HuggingFaceEmbeddings
+from google.genai import Client
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_qdrant import QdrantVectorStore
@@ -15,6 +16,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "ChatBot-Portfolio"
+
+# --------------------------------------------------
+# Gemini Client + Embeddings
+# --------------------------------------------------
+gemini_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+class GeminiEmbeddings:
+    def __init__(self, model="models/text-embedding-004"):
+        self.client = gemini_client
+        self.model = model
+
+    def embed_documents(self, texts):
+        return [
+            self.client.models.embed_content(
+                model=self.model,
+                content=text
+            ).embedding
+            for text in texts
+        ]
+
+    def embed_query(self, text):
+        return self.client.models.embed_content(
+            model=self.model,
+            content=text
+        ).embedding
 
 def fetch_github_projects() -> str:
     try:
@@ -56,9 +82,7 @@ def build_vector_db():
     chunks = splitter.split_documents(documents)
     logger.info(f"Chunks created: {len(chunks)}")
 
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    embeddings = GeminiEmbeddings()
 
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
