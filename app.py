@@ -69,13 +69,15 @@ COLLECTION_NAME = "ChatBot-Portfolio"
 def get_vector_store():
     client = QdrantClient(
         url=os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY")
+        api_key=os.getenv("QDRANT_API_KEY"),
+        timeout=20
     )
 
     return Qdrant(
         client=client,
         collection_name=COLLECTION_NAME,
-        embedding=embeddings
+        embedding=embeddings,
+        content_payload_key="page_content"
     )
 
 # --------------------------------------------------
@@ -84,18 +86,18 @@ def get_vector_store():
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 def generate_response(query, context):
     prompt = f"""
-You are Navin Assistant.
-Answer ONLY from the given context.
-Speak in first person.
+        You are Navin Assistant.
+        Answer ONLY from the given context.
+        Speak in first person.
 
-Context:
-{context}
+        Context:
+        {context}
 
-Question:
-{query}
+        Question:
+        {query}
 
-Answer:
-"""
+        Answer:
+        """
     response = gemini_client.models.generate_content(
         model="gemini-1.5-flash",
         contents=prompt
@@ -131,8 +133,13 @@ def chatbot():
         return {"response": response}
 
     except Exception as e:
-        app.logger.error(e)
-        return {"error": "Internal server error"}, 500
+        import traceback
+        traceback.print_exc()
+        return {
+            "error": "Internal server error",
+            "details": str(e)
+        }, 500
+
 
 @app.get("/api/chatbot/ping")
 def ping():
