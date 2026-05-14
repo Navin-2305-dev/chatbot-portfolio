@@ -5,7 +5,7 @@ from qdrant_client.models import VectorParams, Distance
 
 load_dotenv()
 
-COLLECTION_NAME = "ChatBot-Portfolio"
+COLLECTION_NAME = "navin_portfolio"
 VECTOR_SIZE = 768  # Gemini embedding size
 
 client = QdrantClient(
