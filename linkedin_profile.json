@@ -1,0 +1,182 @@
+{
+  "name": "Navin B",
+  "headline": "Tech Maverick | AI & Robotics Scholar | Full-Stack Dev (Flutter • Django • Python) | 5x Hackathon Champion | AI Solution Architect | Startup Visionary | Fresh Mind, Seasoned Insights | Always Evolving",
+  "summary": "Hey, I'm Navin B — an AI & Robotics Honors Scholar and passionate Python Developer dedicated to building scalable, intelligent, and meaningful tech solutions.\n\nCurrently pursuing BTech in Artificial Intelligence and Data Science at Sri Sairam Engineering College (CGPA: 8.45), I bring a strong blend of technical expertise, creative problem-solving, and real-world impact through hands-on projects and multi-domain internships.\n\nWhat I Do Best:\n- Full-Stack & Backend Development: Proficient in Python, Django, Flutter, and Firebase. Built scalable apps and AI-powered systems with 90%+ accuracy, improving system performance by 40%.\n- AI for Real Impact: Developed healthcare-focused platforms like Mediwise, automated ICD code matching using Mistral AI, and built smart content parsing systems using ChromaDB.\n- Hackathon Champion: 5x Winner (Ideathon, Solveathon, Innovathon, Genesis 1.0, NDLI Hackathon) — I thrive in competitive, high-impact environments.\n- Internship Experience: Contributed to dynamic teams at Zootoca Technologies, 114 AI Innovation, and Maestrominds, building performance-optimized applications with real business value.\n\nWhy I Stand Out:\nI approach every problem with a fresh mind and seasoned insights — combining a strong grasp of fundamentals with a passion for creative, user-focused innovation. I believe in learning by building, collaborating, and pushing boundaries through experimentation.\n\nMy Vision:\nShort Term: Master the tech stacks I work with (Python, Flutter, Django, OpenCV, Firebase) and build a solid foundation in CS fundamentals, system design, and software architecture.\nLong Term: Launch a tech startup focused on AI-driven healthcare and impactful automation, and lead with purpose, innovation, and empathy.\n\nI'm open to internships and entry-level roles where I can grow, contribute, and innovate with a forward-thinking team.",
+  "location": "Chennai, Tamil Nadu, India",
+  "address": "No 24/54, Jambuli Bharathi Street, Kodungaiyur, Chennai - 600118",
+  "phone": "8072489076",
+  "email": "navinking2305@gmail.com",
+  "profile_url": "https://www.linkedin.com/in/navinb23",
+  "open_to_work": true,
+  "looking_for": "Internships and entry-level roles in AI, Backend Development, Full-Stack Engineering, or AI Solution Architecture",
+  "experience": [
+    {
+      "title": "Software Developer Intern",
+      "company": "IBM",
+      "location": "Bengaluru, Karnataka, India",
+      "start_date": "January 2026",
+      "end_date": "Present",
+      "description": "Currently working as a Software Developer Intern at IBM, Bengaluru. Contributing to software development initiatives within one of the world's leading technology companies, applying Python and AI skills in a professional enterprise environment."
+    },
+    {
+      "title": "Back End Developer",
+      "company": "114 AI, Inc",
+      "location": "Bengaluru, Karnataka, India",
+      "start_date": "January 2025",
+      "end_date": "July 2025",
+      "description": "Worked as a Back End Developer for 7 months at 114 AI, an AI-focused company. Built and maintained server-side systems and APIs, contributing to AI-powered product development with real business impact."
+    },
+    {
+      "title": "Application Developer",
+      "company": "MAESTROMINDS",
+      "location": "Chennai, Tamil Nadu, India",
+      "start_date": "March 2025",
+      "end_date": "March 2025",
+      "description": "Worked as an Application Developer at Maestrominds, Chennai. Contributed to application development projects, building performance-optimized solutions using mobile and web technologies."
+    },
+    {
+      "title": "Data Science Intern",
+      "company": "Prodigy InfoTech",
+      "location": "Chennai, Tamil Nadu, India",
+      "start_date": "June 2024",
+      "end_date": "June 2024",
+      "description": "Completed a Data Science internship at Prodigy InfoTech. Gained hands-on experience in data analysis, machine learning workflows, and deriving insights from real-world datasets."
+    },
+    {
+      "title": "Web Development Intern",
+      "company": "Zootoca Technologies Pvt Ltd",
+      "location": "Chennai, Tamil Nadu, India",
+      "start_date": "June 2024",
+      "end_date": "June 2024",
+      "description": "Completed a Web Development internship at Zootoca Technologies. Contributed to web application development, building and optimizing front-end and back-end features for production systems."
+    }
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Technology (BTech) — Artificial Intelligence and Data Science",
+      "institution": "Sri Sairam Engineering College",
+      "start_year": "October 2022",
+      "graduation_year": "June 2026",
+      "grade": "8.45 CGPA",
+      "honors": "AI & Robotics Honors Scholar"
+    },
+    {
+      "degree": "Schooling (Higher Secondary)",
+      "institution": "Seventh Day Adventist Higher Secondary School",
+      "start_year": "June 2008",
+      "graduation_year": "May 2022",
+      "grade": "",
+      "honors": ""
+    }
+  ],
+  "skills": [
+    "Python",
+    "Django",
+    "Flutter",
+    "Firebase",
+    "OpenCV",
+    "FastAPI",
+    "Flask",
+    "Backend Development",
+    "Full-Stack Development",
+    "Application Development",
+    "Artificial Intelligence",
+    "Machine Learning",
+    "Large Language Models (LLMs)",
+    "Mistral AI",
+    "ChromaDB",
+    "RAG (Retrieval Augmented Generation)",
+    "Vector Databases",
+    "Data Science",
+    "Data Analytics",
+    "Data Visualization",
+    "SQL",
+    "REST APIs",
+    "System Design",
+    "Software Architecture",
+    "Git",
+    "Healthcare AI",
+    "ICD Code Automation",
+    "Smart Content Parsing"
+  ],
+  "top_skills": [
+    "Application Development",
+    "Backend Development",
+    "Django"
+  ],
+  "certifications": [
+    {
+      "name": "Tata Group — Data Visualisation: Empowering Business with Effective Insights Job Simulation",
+      "issuer": "Tata Group / Forage",
+      "date": ""
+    },
+    {
+      "name": "Data Science for Engineers",
+      "issuer": "",
+      "date": ""
+    },
+    {
+      "name": "Webinar on Paper to Publishing",
+      "issuer": "",
+      "date": ""
+    },
+    {
+      "name": "IBM Machine Learning Specialist — Associate",
+      "issuer": "IBM",
+      "date": ""
+    },
+    {
+      "name": "Accenture North America — Data Analytics and Visualization Job Simulation",
+      "issuer": "Accenture / Forage",
+      "date": ""
+    }
+  ],
+  "hackathons": [
+    {
+      "name": "Ideathon",
+      "result": "Winner"
+    },
+    {
+      "name": "Solveathon",
+      "result": "Winner"
+    },
+    {
+      "name": "Innovathon",
+      "result": "Winner"
+    },
+    {
+      "name": "Genesis 1.0",
+      "result": "Winner"
+    },
+    {
+      "name": "NDLI Hackathon",
+      "result": "Winner"
+    }
+  ],
+  "notable_projects": [
+    {
+      "name": "Mediwise",
+      "description": "Healthcare-focused AI platform built for real-world medical impact. Developed with a focus on scalability and intelligent automation."
+    },
+    {
+      "name": "ICD Code Matching Automation",
+      "description": "Automated ICD (International Classification of Diseases) code matching system using Mistral AI, reducing manual coding effort significantly."
+    },
+    {
+      "name": "Smart Content Parsing System",
+      "description": "Intelligent content parsing system built using ChromaDB for semantic search and document understanding."
+    }
+  ],
+  "languages": [
+    "English",
+    "Tamil"
+  ],
+  "volunteer": [],
+  "honors": [
+    "5x Hackathon Champion (Ideathon, Solveathon, Innovathon, Genesis 1.0, NDLI Hackathon)",
+    "AI & Robotics Honors Scholar at Sri Sairam Engineering College"
+  ],
+  "publications": [],
+  "total_hackathon_wins": 5,
+  "current_status": "Final year BTech student (graduating June 2026), currently interning at IBM as Software Developer"
+}
