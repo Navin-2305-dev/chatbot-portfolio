@@ -36,7 +36,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 # ── CORS configuration (FIXED – no function, only list + regex) ──────────────
 
 # Read allowed origins from environment (comma-separated)
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://navin-folio.vercel.app")
 _explicit_origins = [o.strip().rstrip('/') for o in _raw_origins.split(",") if o.strip()]
 
 # Fallback for local development
@@ -46,7 +46,6 @@ _LOCAL_DEV_ORIGINS = [
     "https://navin-folio.vercel.app",
 ]
 
-# Build the list of allowed origins
 if _explicit_origins:
     allowed_origins = _explicit_origins.copy()
     # Add regex pattern to allow any Vercel preview deployment
