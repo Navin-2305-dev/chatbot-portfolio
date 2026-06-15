@@ -43,7 +43,7 @@ _explicit_origins = [o.strip().rstrip('/') for o in _raw_origins.split(",") if o
 _LOCAL_DEV_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://navin-folio.vercel.app/",
+    "https://navin-folio.vercel.app",
 ]
 
 # Build the list of allowed origins
