@@ -1,7 +1,8 @@
 import logging
 import os
+import re
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -32,15 +33,45 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-ALLOWED_ORIGINS = (
-    [o.strip() for o in _raw_origins.split(",")]
-    if _raw_origins != "*"
-    else "*"
-)
-CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})
+# ── CORS configuration (FIXED – no function, only list + regex) ──────────────
 
+# Read allowed origins from environment (comma-separated)
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+_explicit_origins = [o.strip().rstrip('/') for o in _raw_origins.split(",") if o.strip()]
+
+# Fallback for local development
+_LOCAL_DEV_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://navin-folio.vercel.app/",
+]
+
+# Build the list of allowed origins
+if _explicit_origins:
+    allowed_origins = _explicit_origins.copy()
+    # Add regex pattern to allow any Vercel preview deployment
+    allowed_origins.append(r"https://.*\.vercel\.app")
+    logger.info(f"CORS allowed origins: {allowed_origins}")
+else:
+    allowed_origins = _LOCAL_DEV_ORIGINS
+    logger.warning(
+        "ALLOWED_ORIGINS not set – running in local‑dev mode. "
+        f"Allowed: {allowed_origins}. "
+        "Set ALLOWED_ORIGINS in Railway for production deployments."
+    )
+
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": allowed_origins,          # list of strings + regex pattern
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "X-Session-ID"],
+            "supports_credentials": True,
+            "max_age": 3600,
+        }
+    },
+)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -54,18 +85,11 @@ VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "768"))
 EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "1"))
 
 GENERATION_MODEL = os.getenv("GEMINI_GENERATION_MODEL", "gemini-2.5-flash")
-
 RETRIEVAL_K = int(os.getenv("RETRIEVAL_K", "5"))
-
-# How many past turns the LLM sees for context (each turn = 1 user + 1 assistant)
 HISTORY_WINDOW = int(os.getenv("CONVERSATION_HISTORY_WINDOW", "6"))
-
-# Max sessions to hold in RAM (oldest evicted first to prevent memory leak)
 MAX_SESSIONS = int(os.getenv("MAX_SESSIONS", "500"))
 
-# Cookie name for the session ID
 SESSION_COOKIE = "portfolio_session_id"
-
 
 # ── Environment validation ────────────────────────────────────────────────────
 
@@ -79,16 +103,13 @@ def _validate_environment() -> None:
             f"Missing required environment variables: {', '.join(missing)}"
         )
 
-
 _validate_environment()
-
 
 # ── Gemini client ─────────────────────────────────────────────────────────────
 
 genai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-
-# ── Embedding instance (shared with build_db at module level) ─────────────────
+# ── Embedding instance ────────────────────────────────────────────────────────
 
 embeddings = GeminiGenAIEmbeddings(
     api_key=GEMINI_API_KEY,
@@ -96,7 +117,6 @@ embeddings = GeminiGenAIEmbeddings(
     output_dimensionality=VECTOR_DIMENSION,
     batch_size=EMBEDDING_BATCH_SIZE,
 )
-
 
 # ── Qdrant vector store factory ───────────────────────────────────────────────
 
@@ -112,16 +132,11 @@ def _get_vector_store() -> Optional[QdrantVectorStore]:
         logger.exception(f"Qdrant connection error: {e}")
         return None
 
-
 # ── Server-side session store ─────────────────────────────────────────────────
-# Simple in-memory dict: {session_id: {"history": [...], "created_at": ..., "last_active": ...}}
-# For multi-worker deployments, swap this for Redis (same interface).
 
 _sessions: Dict[str, dict] = {}
 
-
 def _evict_old_sessions() -> None:
-    """Remove oldest sessions when cap is reached to prevent unbounded growth."""
     if len(_sessions) >= MAX_SESSIONS:
         oldest = sorted(_sessions.items(), key=lambda kv: kv[1]["last_active"])
         to_remove = oldest[: len(_sessions) - MAX_SESSIONS + 1]
@@ -129,45 +144,30 @@ def _evict_old_sessions() -> None:
             del _sessions[sid]
             logger.info(f"Session evicted (capacity): {sid}")
 
-
 def _get_or_create_session(session_id: Optional[str]) -> tuple[str, dict]:
-    """Return (session_id, session_dict) — creating a new session if needed."""
     if session_id and session_id in _sessions:
-        _sessions[session_id]["last_active"] = datetime.utcnow().isoformat()
+        _sessions[session_id]["last_active"] = datetime.now(UTC).isoformat()
         return session_id, _sessions[session_id]
 
-    # New session
     _evict_old_sessions()
     new_id = str(uuid.uuid4())
     _sessions[new_id] = {
         "history": [],
-        "created_at": datetime.utcnow().isoformat(),
-        "last_active": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "last_active": datetime.now(UTC).isoformat(),
     }
     logger.info(f"New session created: {new_id}")
     return new_id, _sessions[new_id]
 
-
 def _read_session_id_from_request() -> Optional[str]:
-    """Read session ID from cookie or X-Session-ID header."""
     return (
         request.cookies.get(SESSION_COOKIE)
         or request.headers.get("X-Session-ID")
     )
 
-
 # ── Prompt builder with conversation history ──────────────────────────────────
 
 def _build_prompt(query: str, context: str, history: List[dict]) -> str:
-    """
-    Builds the full prompt fed to Gemini.
-
-    Structure:
-      1. System persona & rules
-      2. Retrieved knowledge base context
-      3. Recent conversation history (last HISTORY_WINDOW turns)
-      4. Current user question
-    """
     system_block = """You are Navin Assistant — a professional, friendly AI representing Navin B on his portfolio website.
 
 Rules:
@@ -181,8 +181,6 @@ Rules:
 - Remember what the user said earlier in this conversation and refer back to it naturally when relevant."""
 
     context_block = f"Knowledge Base Context:\n{context}"
-
-    # Build history block (last HISTORY_WINDOW turns)
     history_block = ""
     if history:
         recent = history[-HISTORY_WINDOW:]
@@ -193,14 +191,11 @@ Rules:
         history_block = "\n".join(lines)
 
     question_block = f"User's current question:\n{query}\n\nAnswer as Navin:"
-
     parts = [system_block, context_block]
     if history_block:
         parts.append(history_block)
     parts.append(question_block)
-
     return "\n\n".join(parts)
-
 
 # ── Gemini generation with retry ──────────────────────────────────────────────
 
@@ -220,19 +215,33 @@ def _generate_response(query: str, context: str, history: List[dict]) -> str:
     answer = getattr(response, "text", None)
     return answer.strip() if answer else "I couldn't generate a response right now. Please try again."
 
+# ── Helper: set session cookie (FIXED for cross-origin) ───────────────────────
 
-# ── Helper: set session cookie on response ────────────────────────────────────
+def _is_secure_request() -> bool:
+    """Determine if the request is HTTPS (works behind reverse proxies)."""
+    # Check common headers set by Railway/Vercel proxies
+    if request.headers.get("X-Forwarded-Proto") == "https":
+        return True
+    if request.headers.get("X-Forwarded-Ssl") == "on":
+        return True
+    if request.scheme == "https":
+        return True
+    return False
 
 def _attach_session_cookie(response, session_id: str):
+    secure = _is_secure_request()
+    # In production (HTTPS) we must use SameSite=None + Secure
+    samesite = "None" if secure else "Lax"
     response.set_cookie(
         SESSION_COOKIE,
         session_id,
         httponly=True,
-        samesite="Lax",
-        max_age=60 * 60 * 24 * 7,  # 1 week
+        samesite=samesite,
+        secure=secure,
+        max_age=60 * 60 * 24 * 7,   # 1 week
+        path="/",
     )
     return response
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Routes
@@ -248,7 +257,6 @@ def home():
         "collection": COLLECTION_NAME,
     })
 
-
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({
@@ -259,30 +267,18 @@ def health():
         "collection": COLLECTION_NAME,
     })
 
+# Explicit GET handler to avoid 405 errors
+@app.route("/api/chatbot", methods=["GET"])
+def chat_get_not_allowed():
+    return jsonify({"error": "Only POST requests are allowed"}), 405
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
-
-@app.route("/api/chat", methods=["POST"])
+# Main chat endpoint (POST only)
+@app.route("/api/chat", methods=["POST", "OPTIONS"])
+@app.route("/api/chatbot", methods=["POST", "OPTIONS"])
 def chat():
-    """
-    Main chat endpoint.
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
 
-    Request body (JSON):
-        { "query": "Tell me about your projects" }
-
-    Session is tracked via cookie (portfolio_session_id) or
-    X-Session-ID header. A new session is created automatically
-    on first contact and the ID is returned in the response cookie
-    and response body.
-
-    Response (JSON):
-        {
-            "response": "...",
-            "session_id": "...",
-            "sources_found": 4,
-            "turn": 3
-        }
-    """
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 415
 
@@ -295,11 +291,9 @@ def chat():
     if not query:
         return jsonify({"error": "query cannot be empty"}), 400
 
-    # Resolve session
     raw_sid = _read_session_id_from_request()
     session_id, session = _get_or_create_session(raw_sid)
 
-    # Retrieve context from vector DB
     vector_store = _get_vector_store()
     if vector_store is None:
         return jsonify({"error": "Knowledge base unavailable. Please try again later."}), 503
@@ -310,7 +304,6 @@ def chat():
         logger.exception(f"Retrieval error: {e}")
         return jsonify({"error": "Retrieval failed", "details": str(e)}), 500
 
-    # Build context string with source attribution for quality
     if docs:
         context_parts = []
         for doc in docs:
@@ -322,22 +315,20 @@ def chat():
     else:
         context = "No specific information found in the knowledge base for this query."
 
-    # Generate response with history context
     try:
         response_text = _generate_response(query, context, session["history"])
     except Exception as e:
         logger.exception(f"Generation error: {e}")
         return jsonify({"error": "Generation failed", "details": str(e)}), 500
 
-    # Persist turn to session history
     turn = {
         "query": query,
         "response": response_text,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "sources": len(docs),
     }
     session["history"].append(turn)
-    session["last_active"] = datetime.utcnow().isoformat()
+    session["last_active"] = datetime.now(UTC).isoformat()
 
     resp = jsonify({
         "response": response_text,
@@ -347,30 +338,24 @@ def chat():
     })
     return _attach_session_cookie(resp, session_id)
 
-
-# ── Session management ────────────────────────────────────────────────────────
-
+# Session management endpoints
 @app.route("/api/session/new", methods=["POST"])
 def new_session():
-    """Force-create a new session (useful for 'Start over' button in UI)."""
     _evict_old_sessions()
     session_id = str(uuid.uuid4())
     _sessions[session_id] = {
         "history": [],
-        "created_at": datetime.utcnow().isoformat(),
-        "last_active": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "last_active": datetime.now(UTC).isoformat(),
     }
     resp = jsonify({"session_id": session_id, "message": "New session started"})
     return _attach_session_cookie(resp, session_id)
 
-
 @app.route("/api/session/history", methods=["GET"])
 def session_history():
-    """Return the conversation history for the current session."""
     raw_sid = _read_session_id_from_request()
     if not raw_sid or raw_sid not in _sessions:
         return jsonify({"history": [], "session_id": None})
-
     session = _sessions[raw_sid]
     return jsonify({
         "session_id": raw_sid,
@@ -380,29 +365,21 @@ def session_history():
         "last_active": session["last_active"],
     })
 
-
 @app.route("/api/session/delete", methods=["POST"])
 def delete_session():
-    """Delete session data and clear the cookie."""
     raw_sid = _read_session_id_from_request()
     deleted = False
     if raw_sid and raw_sid in _sessions:
         del _sessions[raw_sid]
         deleted = True
         logger.info(f"Session deleted: {raw_sid}")
-
     resp = jsonify({"deleted": deleted, "message": "Session cleared"})
     resp.delete_cookie(SESSION_COOKIE)
     return resp
 
-
 @app.route("/api/session/summary", methods=["GET"])
 def session_summary():
-    """Admin-only: total active sessions count (no PII)."""
     return jsonify({"active_sessions": len(_sessions)})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
